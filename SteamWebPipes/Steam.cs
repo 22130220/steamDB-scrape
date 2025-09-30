@@ -1,12 +1,37 @@
-﻿using System;
-using System.Threading;
+﻿using Newtonsoft.Json;
 using SteamKit2;
-using System.Linq;
-using System.Threading.Tasks;
 using SteamWebPipes.Events;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SteamWebPipes
 {
+
+    public static class KeyValueExtensions
+    {
+        public static object ToDictionary(this KeyValue kv)
+        {
+            if (kv == null)
+                return null;
+
+            // Nếu có children -> convert đệ quy sang Dictionary
+            if (kv.Children != null && kv.Children.Any())
+            {
+                var dict = new Dictionary<string, object>();
+                foreach (var child in kv.Children)
+                {
+                    dict[child.Name] = child.ToDictionary();
+                }
+                return dict;
+            }
+
+            // Nếu chỉ có value
+            return kv.Value;
+        }
+    }
     internal class Steam
     {
         public class SteamKitLogger : IDebugListener
@@ -21,6 +46,7 @@ namespace SteamWebPipes
         private readonly SteamClient Client;
         private readonly SteamUser User;
         private readonly SteamApps Apps;
+        private readonly SteamHelper SteamHelper;
         private bool IsLoggedOn;
         private uint TickerHash;
 
@@ -36,12 +62,14 @@ namespace SteamWebPipes
             User = Client.GetHandler<SteamUser>();
             Apps = Client.GetHandler<SteamApps>();
 
+            SteamHelper = new SteamHelper(Apps);
+
             CallbackManager = new CallbackManager(Client);
             CallbackManager.Subscribe<SteamClient.ConnectedCallback>(OnConnected);
             CallbackManager.Subscribe<SteamClient.DisconnectedCallback>(OnDisconnected);
             CallbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
             CallbackManager.Subscribe<SteamUser.LoggedOffCallback>(OnLoggedOff);
-            CallbackManager.Subscribe<SteamApps.PICSChangesCallback>(OnPICSChanges);
+            CallbackManager.Subscribe<SteamApps.PICSChangesCallback>(OnPICSChangesAsync);
         }
 
         public void Tick()
@@ -88,7 +116,7 @@ namespace SteamWebPipes
             Bootstrap.Log($"PICS ticker stopped #{currentHash}");
         }
 
-        private void OnPICSChanges(SteamApps.PICSChangesCallback callback)
+        private async void OnPICSChangesAsync(SteamApps.PICSChangesCallback callback)
         {
             if (PreviousChangeNumber == callback.CurrentChangeNumber)
             {
@@ -117,6 +145,41 @@ namespace SteamWebPipes
             foreach (var changeList in changeLists)
             {
                 Bootstrap.Broadcast(new ChangelistEvent(changeList));
+            }
+
+            var appIds = appGrouping
+                .SelectMany(group => group.Select(change => change.ID))
+                .Distinct()
+                .ToList();
+
+            // Lấy tất cả PackageID
+            var packageIds = packageGrouping
+                .SelectMany(group => group.Select(change => change.ID))
+                .Distinct()
+                .ToList();
+
+            var productInfos = await SteamHelper.GetProductInfoAsync(appIds, packageIds);
+
+            if (productInfos != null)
+            {
+                foreach (var info in productInfos)
+                {
+                    foreach (var kv in info.Apps)
+                    {
+                        var appId = kv.Key;
+                        var appData = kv.Value;
+
+                        var dict = new Dictionary<string, object>
+                        {
+                            ["AppID"] = appId,
+                            ["Data"] = appData.KeyValues.ToDictionary()
+                        };
+
+                        string json = JsonConvert.SerializeObject(dict, Formatting.Indented);
+
+                        Console.WriteLine(json);
+                    }
+                }
             }
         }
 
