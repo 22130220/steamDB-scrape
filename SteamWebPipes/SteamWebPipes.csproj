@@ -9,12 +9,12 @@
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.0.123" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="Fleck" Version="1.2.0" />
-    <PackageReference Include="MySqlConnector" Version="2.0.0" />
+    <PackageReference Include="MySqlConnector" Version="2.4.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="SteamKit2" Version="2.4.0-Alpha.3" />
-    <PackageReference Include="SteamStorefrontAPI" Version="2.0.1.1131" />
+    <PackageReference Include="Quartz" Version="3.15.0" />
+    <PackageReference Include="SteamKit2" Version="3.3.1" />
   </ItemGroup>
   <ItemGroup>
     <None Update="settings.json">
