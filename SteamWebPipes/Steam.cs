@@ -1,11 +1,10 @@
-﻿using Newtonsoft.Json;
+﻿using System;
 using SteamKit2;
-using SteamWebPipes.Events;
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using SteamWebPipes.Events;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace SteamWebPipes
 {
@@ -17,8 +16,7 @@ namespace SteamWebPipes
             if (kv == null)
                 return null;
 
-            // Nếu có children -> convert đệ quy sang Dictionary
-            if (kv.Children != null && kv.Children.Any())
+            if (kv.Children != null && kv.Children.Count != 0)
             {
                 var dict = new Dictionary<string, object>();
                 foreach (var child in kv.Children)
@@ -28,7 +26,6 @@ namespace SteamWebPipes
                 return dict;
             }
 
-            // Nếu chỉ có value
             return kv.Value;
         }
     }
@@ -69,7 +66,7 @@ namespace SteamWebPipes
             CallbackManager.Subscribe<SteamClient.DisconnectedCallback>(OnDisconnected);
             CallbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
             CallbackManager.Subscribe<SteamUser.LoggedOffCallback>(OnLoggedOff);
-            CallbackManager.Subscribe<SteamApps.PICSChangesCallback>(OnPICSChangesAsync);
+            CallbackManager.Subscribe<SteamApps.PICSChangesCallback>(OnPICSChanges);
         }
 
         public void Tick()
@@ -116,7 +113,7 @@ namespace SteamWebPipes
             Bootstrap.Log($"PICS ticker stopped #{currentHash}");
         }
 
-        private async void OnPICSChangesAsync(SteamApps.PICSChangesCallback callback)
+        private void OnPICSChanges(SteamApps.PICSChangesCallback callback)
         {
             if (PreviousChangeNumber == callback.CurrentChangeNumber)
             {
@@ -133,11 +130,11 @@ namespace SteamWebPipes
 
             // Join apps and packages back together based on changelist number
             var changeLists = Utils.FullOuterJoin(appGrouping, packageGrouping, a => a.Key, p => p.Key, (a, p, key) => new SteamChangelist
-                {
-                    ChangeNumber = key,
-                    Apps = a.Select(x => x.ID),
-                    Packages = p.Select(x => x.ID)
-                },
+            {
+                ChangeNumber = key,
+                Apps = a.Select(x => x.ID),
+                Packages = p.Select(x => x.ID)
+            },
                 new EmptyGrouping<uint, SteamApps.PICSChangesCallback.PICSChangeData>(),
                 new EmptyGrouping<uint, SteamApps.PICSChangesCallback.PICSChangeData>())
                 .OrderBy(c => c.ChangeNumber);
@@ -147,40 +144,7 @@ namespace SteamWebPipes
                 Bootstrap.Broadcast(new ChangelistEvent(changeList));
             }
 
-            var appIds = appGrouping
-                .SelectMany(group => group.Select(change => change.ID))
-                .Distinct()
-                .ToList();
-
-            // Lấy tất cả PackageID
-            var packageIds = packageGrouping
-                .SelectMany(group => group.Select(change => change.ID))
-                .Distinct()
-                .ToList();
-
-            var productInfos = await SteamHelper.GetProductInfoAsync(appIds, packageIds);
-
-            if (productInfos != null)
-            {
-                foreach (var info in productInfos)
-                {
-                    foreach (var kv in info.Apps)
-                    {
-                        var appId = kv.Key;
-                        var appData = kv.Value;
-
-                        var dict = new Dictionary<string, object>
-                        {
-                            ["AppID"] = appId,
-                            ["Data"] = appData.KeyValues.ToDictionary()
-                        };
-
-                        string json = JsonConvert.SerializeObject(dict, Formatting.Indented);
-
-                        Console.WriteLine(json);
-                    }
-                }
-            }
+            DBhelper.InsertPICSEvent(changeLists);
         }
 
         private void OnConnected(SteamClient.ConnectedCallback callback)

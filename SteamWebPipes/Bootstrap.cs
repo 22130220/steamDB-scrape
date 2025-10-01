@@ -37,12 +37,15 @@ namespace SteamWebPipes
                 Config.DatabaseConnectionString = null;
 
                 Log("Database connectiong string is empty, will not try to get app names");
+            } else
+            {
+                //DBhelper.InitilizeData();
             }
 
-            var server = new WebSocketServer(Config.Location)
-            {
-                SupportedSubProtocols = new[] { "steam-pics" }
-            };
+                var server = new WebSocketServer(Config.Location)
+                {
+                    SupportedSubProtocols = new[] { "steam-pics" }
+                };
 
             if (File.Exists(Config.X509Certificate))
             {
@@ -90,10 +93,12 @@ namespace SteamWebPipes
 
             var steam = new Steam();
 
-            if (File.Exists("last-changenumber.txt"))
-            {
-                steam.PreviousChangeNumber = uint.Parse(File.ReadAllText("last-changenumber.txt"));
-            }
+            //if (File.Exists("last-changenumber.txt"))
+            //{
+            //    steam.PreviousChangeNumber = uint.Parse(File.ReadAllText("last-changenumber.txt"));
+            //}
+
+            steam.PreviousChangeNumber = (uint)DBhelper.GetLastChangeNumber();
 
             var timer = new Timer();
             timer.Elapsed += TimerTick;

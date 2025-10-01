@@ -2,7 +2,7 @@
 
 namespace SteamWebPipes
 {
-    internal class SteamChangelist
+    public class SteamChangelist
     {
         public uint ChangeNumber { get; set; }
         public IEnumerable<uint> Apps { get; set; }
